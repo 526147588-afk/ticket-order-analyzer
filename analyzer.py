@@ -121,10 +121,31 @@ class TicketOrderAnalyzer:
         stats = stats.sort_values('总利润', ascending=False)
         return stats.to_dict('records')
 
+    def get_platform_profit(self):
+        if self.df is None:
+            return []
+        profit = pd.to_numeric(self.df['利润'], errors='coerce')
+        self.df['利润数值'] = profit
+        stats = self.df.groupby('平台')['利润数值'].agg(['sum', 'mean', 'count'])
+        stats = stats.reset_index()
+        stats.columns = ['平台', '总利润', '平均利润', '订单数']
+        stats = stats.sort_values('总利润', ascending=False)
+        return stats.to_dict('records')
+
     def get_payment_stats(self):
         if self.df is None:
             return []
         return self.df['支付渠道'].value_counts().to_dict()
+
+    def get_payment_amount(self):
+        if self.df is None:
+            return []
+        pay = pd.to_numeric(self.df['支付金额'], errors='coerce')
+        self.df['支付金额_数值'] = pay
+        stats = self.df.groupby('支付渠道')['支付金额_数值'].sum().reset_index()
+        stats.columns = ['支付渠道', '总金额']
+        stats = stats.sort_values('总金额', ascending=False)
+        return stats.to_dict('records')
 
     def get_failure_stats(self):
         if self.df is None:
@@ -134,10 +155,75 @@ class TicketOrderAnalyzer:
         for reason, count in fail_counts.items():
             if pd.notna(reason) and str(reason).strip():
                 result.append({
-                    '失败原因': reason,
+                    '失败原因': reason[:100],
                     '订单数': count
                 })
         return result
+
+    def get_hourly_stats(self):
+        if self.df is None:
+            return []
+        self.df['创建时间_小时'] = pd.to_datetime(self.df['创建时间'], errors='coerce').dt.hour
+        hour_counts = self.df['创建时间_小时'].value_counts().sort_index()
+        result = []
+        total = len(self.df)
+        for hour, count in hour_counts.items():
+            if pd.notna(hour):
+                result.append({
+                    '小时': int(hour),
+                    '订单数': count,
+                    '占比': f"{count/total*100:.1f}%"
+                })
+        return result
+
+    def get_passenger_stats(self):
+        if self.df is None:
+            return []
+        return self.df['乘客数量'].value_counts().sort_index().to_dict()
+
+    def get_airline_passengers(self):
+        if self.df is None:
+            return []
+        stats = self.df.groupby('航空公司列表')['乘客数量'].agg(['sum', 'mean', 'count'])
+        stats = stats.reset_index()
+        stats.columns = ['航司', '总乘客数', '平均乘客数', '订单数']
+        stats = stats.sort_values('总乘客数', ascending=False)
+        return stats.to_dict('records')
+
+    def get_departure_city_stats(self):
+        if self.df is None:
+            return []
+        dep_counts = self.df['出发机场列表'].value_counts().head(20)
+        total = len(self.df)
+        result = []
+        for city, count in dep_counts.items():
+            result.append({
+                '城市': city,
+                '订单数': count,
+                '占比': f"{count/total*100:.1f}%"
+            })
+        return result
+
+    def get_arrival_city_stats(self):
+        if self.df is None:
+            return []
+        arr_counts = self.df['到达机场列表'].value_counts().head(20)
+        total = len(self.df)
+        result = []
+        for city, count in arr_counts.items():
+            result.append({
+                '城市': city,
+                '订单数': count,
+                '占比': f"{count/total*100:.1f}%"
+            })
+        return result
+
+    def get_platform_payment_distribution(self):
+        if self.df is None:
+            return []
+        stats = self.df.groupby(['平台', '支付渠道']).size().reset_index(name='订单数')
+        stats = stats.sort_values(['平台', '订单数'], ascending=[True, False])
+        return stats.to_dict('records')
 
     def get_order_details(self, page=1, page_size=100):
         if self.df is None:

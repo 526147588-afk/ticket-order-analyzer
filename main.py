@@ -24,14 +24,15 @@ st.title("出票订单数据分析工具 v1.0")
 st.sidebar.title("导航")
 page = st.sidebar.radio(
     "选择功能",
-    ["📊 数据概览", "📈 航司分析", "🛫 航线分析", "🔄 航程类型", "💰 财务统计", "⚠️ 失败分析", "📋 数据明细"]
+    ["📊 数据概览", "📈 航司分析", "🛫 航线分析", "🔄 航程类型",
+     "📅 时间分析", "💰 利润分析", "💳 支付分析", "✈️ 城市分析",
+     "👥 乘客分析", "⚠️ 失败分析", "📋 数据明细"]
 )
 
 # 文件上传
 uploaded_file = st.sidebar.file_uploader("上传Excel文件", type=["xlsx", "xls"])
 
 if uploaded_file:
-    # 保存文件
     with open("temp_data.xlsx", "wb") as f:
         f.write(uploaded_file.getbuffer())
 
@@ -39,6 +40,7 @@ if uploaded_file:
     st.sidebar.success(f"已加载: {uploaded_file.name}")
     st.sidebar.info(f"总订单: {analyzer.total:,}")
 
+    # ========== 1. 数据概览 ==========
     if page == "📊 数据概览":
         st.header("数据概览")
 
@@ -59,6 +61,7 @@ if uploaded_file:
         )
         st.plotly_chart(fig, use_container_width=True)
 
+    # ========== 2. 航司分析 ==========
     elif page == "📈 航司分析":
         st.header("航司分析")
 
@@ -77,7 +80,6 @@ if uploaded_file:
             df_cross = pd.DataFrame(cross[:30])
             st.dataframe(df_cross, use_container_width=True)
 
-        # 柱状图
         st.subheader("航司订单量可视化")
         fig = px.bar(
             df_stats.head(10),
@@ -88,6 +90,7 @@ if uploaded_file:
         )
         st.plotly_chart(fig, use_container_width=True)
 
+    # ========== 3. 航线分析 ==========
     elif page == "🛫 航线分析":
         st.header("航线分析")
 
@@ -96,7 +99,6 @@ if uploaded_file:
 
         st.dataframe(df_route, use_container_width=True)
 
-        # 柱状图
         st.subheader("TOP 20 航线订单量")
         fig = px.bar(
             df_route.head(20),
@@ -106,6 +108,7 @@ if uploaded_file:
         )
         st.plotly_chart(fig, use_container_width=True)
 
+    # ========== 4. 航程类型 ==========
     elif page == "🔄 航程类型":
         st.header("航程类型分析")
 
@@ -133,50 +136,188 @@ if uploaded_file:
         df_pt = pd.DataFrame(platform_trip)
         st.dataframe(df_pt, use_container_width=True)
 
-    elif page == "💰 财务统计":
-        st.header("财务统计")
+    # ========== 5. 时间分析 ==========
+    elif page == "📅 时间分析":
+        st.header("时间维度分析")
+
+        hourly = analyzer.get_hourly_stats()
+        df_hourly = pd.DataFrame(hourly)
+
+        st.subheader("按小时统计订单量")
+        fig = px.bar(
+            df_hourly,
+            x="小时",
+            y="订单数",
+            title="24小时订单分布",
+            color="订单数",
+            color_continuous_scale="blues"
+        )
+        fig.update_layout(xaxis_tickmode='linear', xaxis_dtick=1)
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.dataframe(df_hourly, use_container_width=True)
+
+    # ========== 6. 利润分析 ==========
+    elif page == "💰 利润分析":
+        st.header("利润维度分析")
 
         finance = analyzer.get_finance_stats()
         airline_profit = analyzer.get_airline_profit()
+        platform_profit = analyzer.get_platform_profit()
 
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("总支付金额", f"¥{finance.get('总支付金额', 0):,.2f}")
-        col2.metric("盈利订单", f"{finance.get('盈利订单数', 0):,} 单")
-        col3.metric("亏损订单", f"{finance.get('亏损订单数', 0):,} 单")
-        col4.metric("平均利润", f"¥{finance.get('平均利润', 0):.2f}")
+        col1.metric("总利润", f"¥{finance.get('总利润', 0):,.2f}")
+        col2.metric("平均利润", f"¥{finance.get('平均利润', 0):.2f}")
+        col3.metric("盈利订单", f"{finance.get('盈利订单数', 0):,} 单 ({finance.get('盈利订单数', 0)/analyzer.total*100:.1f}%)")
+        col4.metric("亏损订单", f"{finance.get('亏损订单数', 0):,} 单 ({finance.get('亏损订单数', 0)/analyzer.total*100:.1f}%)")
 
-        st.subheader("各航司利润统计 TOP 20")
-        df_profit = pd.DataFrame(airline_profit[:20])
-        st.dataframe(df_profit, use_container_width=True)
+        col5, col6 = st.columns(2)
 
-        # 利润柱状图
+        with col5:
+            st.subheader("各航司利润统计 TOP 20")
+            df_profit = pd.DataFrame(airline_profit[:20])
+            st.dataframe(df_profit, use_container_width=True)
+
+        with col6:
+            st.subheader("各平台利润统计")
+            df_platform_profit = pd.DataFrame(platform_profit)
+            st.dataframe(df_platform_profit, use_container_width=True)
+
+        st.subheader("航司利润对比")
         fig = px.bar(
-            df_profit.head(10),
+            df_profit.head(15),
             x="航司",
             y="总利润",
-            color="航司",
-            title="TOP 10 航司总利润"
+            color="总利润",
+            title="TOP 15 航司总利润（盈利为正，亏损为负）",
+            color_continuous_scale="RdYlGn"
         )
         st.plotly_chart(fig, use_container_width=True)
 
+    # ========== 7. 支付分析 ==========
+    elif page == "💳 支付分析":
+        st.header("支付分析")
+
+        payment_stats = analyzer.get_payment_stats()
+        payment_amount = analyzer.get_payment_amount()
+        platform_payment = analyzer.get_platform_payment_distribution()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("支付渠道分布")
+            df_payment = pd.DataFrame(list(payment_stats.items()), columns=['支付渠道', '订单数'])
+            fig = px.pie(
+                df_payment,
+                names='支付渠道',
+                values='订单数',
+                title="支付渠道占比"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            st.subheader("各渠道支付金额")
+            df_amount = pd.DataFrame(payment_amount)
+            st.dataframe(df_amount, use_container_width=True)
+
+        st.subheader("各平台支付渠道分布")
+        df_platform_pay = pd.DataFrame(platform_payment)
+        st.dataframe(df_platform_pay, use_container_width=True)
+
+    # ========== 8. 城市分析 ==========
+    elif page == "✈️ 城市分析":
+        st.header("出发/到达城市分析")
+
+        dep_city = analyzer.get_departure_city_stats()
+        arr_city = analyzer.get_arrival_city_stats()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("热门出发城市 TOP 20")
+            df_dep = pd.DataFrame(dep_city)
+            st.dataframe(df_dep, use_container_width=True)
+            fig = px.bar(
+                df_dep.head(15),
+                x="城市",
+                y="订单数",
+                title="TOP 15 出发城市",
+                color="订单数",
+                color_continuous_scale="Oranges"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            st.subheader("热门到达城市 TOP 20")
+            df_arr = pd.DataFrame(arr_city)
+            st.dataframe(df_arr, use_container_width=True)
+            fig = px.bar(
+                df_arr.head(15),
+                x="城市",
+                y="订单数",
+                title="TOP 15 到达城市",
+                color="订单数",
+                color_continuous_scale="Greens"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+    # ========== 9. 乘客分析 ==========
+    elif page == "👥 乘客分析":
+        st.header("乘客维度分析")
+
+        passenger_stats = analyzer.get_passenger_stats()
+        airline_passengers = analyzer.get_airline_passengers()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("乘客数量分布")
+            df_pass = pd.DataFrame(list(passenger_stats.items()), columns=['乘客数', '订单数'])
+            fig = px.pie(
+                df_pass,
+                names='乘客数',
+                values='订单数',
+                title="乘客数量占比"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            st.subheader("各航司乘客数量")
+            df_airline_pass = pd.DataFrame(airline_passengers[:15])
+            st.dataframe(df_airline_pass, use_container_width=True)
+
+        st.subheader("航司乘客量对比")
+        fig = px.bar(
+            df_airline_pass.head(15),
+            x="航司",
+            y="总乘客数",
+            color="平均乘客数",
+            title="TOP 15 航司乘客数量"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ========== 10. 失败分析 ==========
     elif page == "⚠️ 失败分析":
         st.header("失败订单分析")
 
         failure = analyzer.get_failure_stats()
-        df_failure = pd.DataFrame(failure[:30])
+        df_failure = pd.DataFrame(failure[:50])
 
-        st.dataframe(df_failure, use_container_width=True)
+        st.dataframe(df_failure, use_container_width=True, height=400)
 
-        # 图表
         if len(df_failure) > 0:
             fig = px.bar(
-                df_failure.head(15),
+                df_failure.head(20),
                 x="失败原因",
                 y="订单数",
-                title="TOP 15 失败原因"
+                title="TOP 20 失败原因",
+                color="订单数",
+                color_continuous_scale="Reds"
             )
+            fig.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig, use_container_width=True)
 
+    # ========== 11. 数据明细 ==========
     elif page == "📋 数据明细":
         st.header("数据明细")
 
@@ -190,14 +331,17 @@ if uploaded_file:
 else:
     st.info("👈 请上传Excel文件开始分析")
 
-    # 显示示例
     st.subheader("功能说明")
     st.markdown("""
     - **📊 数据概览**: 总订单数、总金额、利润统计、平台分布饼图
     - **📈 航司分析**: 航司订单排名、航司×平台交叉分析
     - **🛫 航线分析**: 航线订单量排名
     - **🔄 航程类型**: 单程/往返/多程分布
-    - **💰 财务统计**: 利润分析、各航司利润
+    - **📅 时间分析**: 24小时订单分布
+    - **💰 利润分析**: 盈利/亏损、各航司平台利润
+    - **💳 支付分析**: 支付渠道分布、支付金额
+    - **✈️ 城市分析**: 热门出发/到达城市
+    - **👥 乘客分析**: 乘客数量分布、各航司乘客量
     - **⚠️ 失败分析**: 失败原因统计
     - **📋 数据明细**: 分页查看原始数据
     """)
