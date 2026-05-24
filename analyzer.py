@@ -233,3 +233,93 @@ class TicketOrderAnalyzer:
         end = start + page_size
         data = self.df.iloc[start:end]
         return data.to_dict('records'), total
+
+    def get_auto_ticket_success_stats(self):
+        """全自动出票成功率分析 - 最后锁定人为空表示无人工干预"""
+        if self.df is None:
+            return []
+        # 最后锁定人字段为空 = 全自动
+        df = self.df.copy()
+        df['是否全自动'] = df['最后锁定人'].isna() | (df['最后锁定人'] == '')
+        # 按航司统计
+        stats = df.groupby('航空公司列表').agg(
+            总订单数=('是否全自动', 'count'),
+            全自动订单数=('是否全自动', 'sum')
+        ).reset_index()
+        stats['全自动成功率'] = (stats['全自动订单数'] / stats['总订单数'] * 100).round(2)
+        stats.columns = ['航司', '总订单数', '全自动订单数', '全自动成功率']
+        stats = stats.sort_values('全自动成功率', ascending=False)
+        return stats.to_dict('records')
+
+    def get_auto_ticket_by_platform(self):
+        """各平台全自动出票成功率"""
+        if self.df is None:
+            return []
+        df = self.df.copy()
+        df['是否全自动'] = df['最后锁定人'].isna() | (df['最后锁定人'] == '')
+        stats = df.groupby('平台').agg(
+            总订单数=('是否全自动', 'count'),
+            全自动订单数=('是否全自动', 'sum')
+        ).reset_index()
+        stats['全自动成功率'] = (stats['全自动订单数'] / stats['总订单数'] * 100).round(2)
+        stats.columns = ['平台', '总订单数', '全自动订单数', '全自动成功率']
+        stats = stats.sort_values('全自动成功率', ascending=False)
+        return stats.to_dict('records')
+
+    def get_auto_ticket_trend(self):
+        """全自动出票趋势 - 按小时统计"""
+        if self.df is None:
+            return []
+        df = self.df.copy()
+        df['是否全自动'] = df['最后锁定人'].isna() | (df['最后锁定人'] == '')
+        df['小时'] = pd.to_datetime(df['创建时间'], errors='coerce').dt.hour
+        stats = df.groupby('小时').agg(
+            总订单数=('是否全自动', 'count'),
+            全自动订单数=('是否全自动', 'sum')
+        ).reset_index()
+        stats['成功率'] = (stats['全自动订单数'] / stats['总订单数'] * 100).round(2)
+        return stats.to_dict('records')
+
+    def get_auto_ticket_by_purchase_channel(self):
+        """各采购渠道全自动出票成功率"""
+        if self.df is None:
+            return []
+        df = self.df.copy()
+        df['是否全自动'] = df['最后锁定人'].isna() | (df['最后锁定人'] == '')
+        stats = df.groupby('采购渠道').agg(
+            总订单数=('是否全自动', 'count'),
+            全自动订单数=('是否全自动', 'sum')
+        ).reset_index()
+        stats['全自动成功率'] = (stats['全自动订单数'] / stats['总订单数'] * 100).round(2)
+        stats.columns = ['采购渠道', '总订单数', '全自动订单数', '全自动成功率']
+        stats = stats.sort_values('全自动成功率', ascending=False)
+        return stats.to_dict('records')
+
+    def get_auto_ticket_by_purchase_type(self):
+        """各采购类型全自动出票成功率"""
+        if self.df is None:
+            return []
+        df = self.df.copy()
+        df['是否全自动'] = df['最后锁定人'].isna() | (df['最后锁定人'] == '')
+        stats = df.groupby('采购类型').agg(
+            总订单数=('是否全自动', 'count'),
+            全自动订单数=('是否全自动', 'sum')
+        ).reset_index()
+        stats['全自动成功率'] = (stats['全自动订单数'] / stats['总订单数'] * 100).round(2)
+        stats.columns = ['采购类型', '总订单数', '全自动订单数', '全自动成功率']
+        stats = stats.sort_values('全自动成功率', ascending=False)
+        return stats.to_dict('records')
+
+    def get_lock_person_by_airline(self):
+        """不同航司的最后锁定人订单占比（不统计空数据）"""
+        if self.df is None:
+            return []
+        df = self.df.copy()
+        df = df[df['最后锁定人'].notna() & (df['最后锁定人'] != '')]
+        stats = df.groupby(['航空公司列表', '最后锁定人']).size().reset_index(name='订单数')
+        airline_total = df.groupby('航空公司列表').size().reset_index(name='航司总订单')
+        stats = stats.merge(airline_total, on='航空公司列表')
+        stats['占比'] = (stats['订单数'] / stats['航司总订单'] * 100).round(2)
+        stats.columns = ['航司', '最后锁定人', '订单数', '航司总订单', '占比(%)']
+        stats = stats.sort_values(['航司', '订单数'], ascending=[True, False])
+        return stats.to_dict('records')

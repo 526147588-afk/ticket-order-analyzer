@@ -26,7 +26,7 @@ page = st.sidebar.radio(
     "选择功能",
     ["📊 数据概览", "📈 航司分析", "🛫 航线分析", "🔄 航程类型",
      "📅 时间分析", "💰 利润分析", "💳 支付分析", "✈️ 城市分析",
-     "👥 乘客分析", "⚠️ 失败分析", "📋 数据明细"]
+     "👥 乘客分析", "⚠️ 失败分析", "🤖 全自动出票", "📋 数据明细"]
 )
 
 # 文件上传
@@ -86,8 +86,10 @@ if uploaded_file:
             x="航司",
             y="订单数",
             color="航司",
-            title="TOP 10 航司订单量"
+            title="TOP 10 航司订单量",
+            text="订单数"
         )
+        fig.update_traces(textposition='outside')
         st.plotly_chart(fig, use_container_width=True)
 
     # ========== 3. 航线分析 ==========
@@ -104,8 +106,10 @@ if uploaded_file:
             df_route.head(20),
             x="航线",
             y="订单数",
-            title="TOP 20 航线"
+            title="TOP 20 航线",
+            text="订单数"
         )
+        fig.update_traces(textposition='outside')
         st.plotly_chart(fig, use_container_width=True)
 
     # ========== 4. 航程类型 ==========
@@ -150,8 +154,10 @@ if uploaded_file:
             y="订单数",
             title="24小时订单分布",
             color="订单数",
-            color_continuous_scale="blues"
+            color_continuous_scale="blues",
+            text="订单数"
         )
+        fig.update_traces(textposition='outside')
         fig.update_layout(xaxis_tickmode='linear', xaxis_dtick=1)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -190,8 +196,10 @@ if uploaded_file:
             y="总利润",
             color="总利润",
             title="TOP 15 航司总利润（盈利为正，亏损为负）",
-            color_continuous_scale="RdYlGn"
+            color_continuous_scale="RdYlGn",
+            text="总利润"
         )
+        fig.update_traces(textposition='outside')
         st.plotly_chart(fig, use_container_width=True)
 
     # ========== 7. 支付分析 ==========
@@ -243,8 +251,10 @@ if uploaded_file:
                 y="订单数",
                 title="TOP 15 出发城市",
                 color="订单数",
-                color_continuous_scale="Oranges"
+                color_continuous_scale="Oranges",
+                text="订单数"
             )
+            fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
 
         with col2:
@@ -257,8 +267,10 @@ if uploaded_file:
                 y="订单数",
                 title="TOP 15 到达城市",
                 color="订单数",
-                color_continuous_scale="Greens"
+                color_continuous_scale="Greens",
+                text="订单数"
             )
+            fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
 
     # ========== 9. 乘客分析 ==========
@@ -292,8 +304,10 @@ if uploaded_file:
             x="航司",
             y="总乘客数",
             color="平均乘客数",
-            title="TOP 15 航司乘客数量"
+            title="TOP 15 航司乘客数量",
+            text="总乘客数"
         )
+        fig.update_traces(textposition='outside')
         st.plotly_chart(fig, use_container_width=True)
 
     # ========== 10. 失败分析 ==========
@@ -312,12 +326,116 @@ if uploaded_file:
                 y="订单数",
                 title="TOP 20 失败原因",
                 color="订单数",
-                color_continuous_scale="Reds"
+                color_continuous_scale="Reds",
+                text="订单数"
             )
+            fig.update_traces(textposition='outside')
             fig.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig, use_container_width=True)
 
-    # ========== 11. 数据明细 ==========
+    # ========== 11. 全自动出票分析 ==========
+    elif page == "🤖 全自动出票":
+        st.header("全自动出票成功率分析")
+        st.caption("最后锁定人为空 = 全自动成功（无人工干预）")
+
+        auto_stats = analyzer.get_auto_ticket_success_stats()
+        platform_auto = analyzer.get_auto_ticket_by_platform()
+        channel_auto = analyzer.get_auto_ticket_by_purchase_channel()
+        type_auto = analyzer.get_auto_ticket_by_purchase_type()
+        trend_auto = analyzer.get_auto_ticket_trend()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            total_orders = sum(s['总订单数'] for s in auto_stats)
+            auto_orders = sum(s['全自动订单数'] for s in auto_stats)
+            success_rate = auto_orders / total_orders * 100 if total_orders > 0 else 0
+            st.metric("总订单数", f"{total_orders:,}")
+        with col2:
+            st.metric("全自动成功率", f"{success_rate:.1f}%")
+
+        col3, col4 = st.columns(2)
+        with col3:
+            st.metric("全自动订单数", f"{auto_orders:,}")
+        with col4:
+            manual_orders = total_orders - auto_orders
+            st.metric("人工介入订单数", f"{manual_orders:,}")
+
+        col5, col6 = st.columns(2)
+        with col5:
+            st.subheader("各航司全自动出票成功率 TOP 20")
+            df_auto = pd.DataFrame(auto_stats[:20])
+            st.dataframe(df_auto, use_container_width=True)
+
+        with col6:
+            st.subheader("各平台全自动出票成功率")
+            df_platform = pd.DataFrame(platform_auto)
+            st.dataframe(df_platform, use_container_width=True)
+
+        col7, col8 = st.columns(2)
+        with col7:
+            st.subheader("各采购渠道全自动出票成功率")
+            df_channel = pd.DataFrame(channel_auto)
+            st.dataframe(df_channel, use_container_width=True)
+
+        with col8:
+            st.subheader("各采购类型全自动出票成功率")
+            df_type = pd.DataFrame(type_auto)
+            st.dataframe(df_type, use_container_width=True)
+
+        st.subheader("全自动成功率趋势（按小时）")
+        if trend_auto:
+            df_trend = pd.DataFrame(trend_auto)
+            fig = px.line(
+                df_trend,
+                x="小时",
+                y="成功率",
+                title="24小时全自动出票成功率",
+                markers=True
+            )
+            fig.update_layout(xaxis_tickmode='linear', xaxis_dtick=1)
+            st.plotly_chart(fig, use_container_width=True)
+            st.dataframe(df_trend, use_container_width=True)
+        else:
+            st.info("暂无趋势数据")
+
+        st.subheader("TOP 10 航司全自动率对比")
+        fig = px.bar(
+            df_auto.head(10),
+            x="航司",
+            y="全自动成功率",
+            color="全自动成功率",
+            title="TOP 10 航司全自动出票成功率",
+            color_continuous_scale="Greens",
+            text="全自动成功率"
+        )
+        fig.update_traces(textposition='outside')
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.subheader("各航司最后锁定人订单分布")
+        lock_person = analyzer.get_lock_person_by_airline()
+        if lock_person:
+            df_lock = pd.DataFrame(lock_person)
+            st.dataframe(df_lock, use_container_width=True)
+
+            # 按锁定人统计汇总
+            lock_summary = df_lock.groupby('最后锁定人')['订单数'].sum().reset_index()
+            lock_summary.columns = ['最后锁定人', '总订单数']
+            lock_summary = lock_summary.sort_values('总订单数', ascending=False)
+            st.subheader("锁定人订单量汇总")
+            fig_lock = px.bar(
+                lock_summary.head(15),
+                x="最后锁定人",
+                y="总订单数",
+                color="总订单数",
+                title="TOP 15 锁定人订单量",
+                text="总订单数"
+            )
+            fig_lock.update_traces(textposition='outside')
+            st.plotly_chart(fig_lock, use_container_width=True)
+        else:
+            st.info("暂无锁定人数据")
+
+    # ========== 12. 数据明细 ==========
     elif page == "📋 数据明细":
         st.header("数据明细")
 
