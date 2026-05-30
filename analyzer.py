@@ -20,6 +20,17 @@ class TicketOrderAnalyzer:
         total = len(self.df)
         profit = pd.to_numeric(self.df['利润'], errors='coerce')
         pay = pd.to_numeric(self.df['支付金额'], errors='coerce')
+
+        # 盈利/亏损统计
+        profit_positive = profit[profit > 0]
+        profit_negative = profit[profit < 0]
+
+        # 全自动出票统计（最后锁定人为空 = 全自动成功）
+        is_auto = self.df['最后锁定人'].isna() | (self.df['最后锁定人'] == '')
+        auto_count = is_auto.sum()
+        manual_count = total - auto_count
+        auto_rate = (auto_count / total * 100) if total > 0 else 0
+
         return {
             '总订单数': total,
             '总支付金额': pay.sum(),
@@ -27,6 +38,44 @@ class TicketOrderAnalyzer:
             '平均利润': profit.mean(),
             '最大利润': profit.max(),
             '最小利润': profit.min(),
+            '盈利订单数': len(profit_positive),
+            '亏损订单数': len(profit_negative),
+            '盈利订单金额': profit_positive.sum() if len(profit_positive) > 0 else 0,
+            '亏损订单金额': abs(profit_negative.sum()) if len(profit_negative) > 0 else 0,
+            '毛利率': (profit.sum() / pay.sum() * 100) if pay.sum() > 0 else 0,
+            # 业务核心指标
+            '全自动成功数': auto_count,
+            '人工介入数': manual_count,
+            '全自动成功率': auto_rate,
+        }
+
+        return {
+            '总订单数': total,
+            '总支付金额': pay.sum(),
+            '总利润': profit.sum(),
+            '平均利润': profit.mean(),
+            '最大利润': profit.max(),
+            '最小利润': profit.min(),
+            '盈利订单数': len(profit_positive),
+            '亏损订单数': len(profit_negative),
+            '盈利订单金额': profit_positive.sum() if len(profit_positive) > 0 else 0,
+            '亏损订单金额': abs(profit_negative.sum()) if len(profit_negative) > 0 else 0,
+            '毛利率': (profit.sum() / pay.sum() * 100) if pay.sum() > 0 else 0,
+        }
+
+    def get_finance_summary(self):
+        """获取财务汇总数据"""
+        if self.df is None:
+            return {}
+        profit = pd.to_numeric(self.df['利润'], errors='coerce')
+        pay = pd.to_numeric(self.df['支付金额'], errors='coerce')
+        cost = pay - profit
+
+        return {
+            '总收入': pay.sum(),
+            '总成本': cost.sum(),
+            '总利润': profit.sum(),
+            '平均利润率': (profit.sum() / pay.sum() * 100) if pay.sum() > 0 else 0,
         }
 
     def get_platform_stats(self):
