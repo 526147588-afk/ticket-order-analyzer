@@ -32,7 +32,6 @@ env/
 *.swo
 
 # Streamlit
-.streamlit/
 
 # Temp files
 temp_data.xlsx
